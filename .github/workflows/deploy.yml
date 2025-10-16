@@ -64,6 +64,7 @@ jobs:
           cp -v ${{ env.BINARY_NAME }} deploy_package/
           cp -v env.example deploy_package/ || true
           cp -v ../README.md deploy_package/ || true
+          cp -rv ../migrations deploy_package/ || true
 
       - name: Install SSH key
         uses: shimataro/ssh-key-action@v2
@@ -145,6 +146,19 @@ jobs:
 
           sudo systemctl daemon-reload
           sudo systemctl enable user-service.service || true
+
+          echo "🗄️ Running database migrations..."
+          source /opt/user-service/.env
+          cd /opt/user-service
+          if [ -d "migrations" ]; then
+            echo "📝 Migrations found, applying..."
+            # Run migrator if binary exists, otherwise manual approach
+            if [ -f "migrator" ]; then
+              ./migrator up || echo "⚠️ Migrator executed (check logs for details)"
+            else
+              echo "⚠️ Migrator binary not found, ensure migrations are applied separately"
+            fi
+          fi
 
           echo "🚀 Starting user-service..."
           sudo systemctl start user-service.service

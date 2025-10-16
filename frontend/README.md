@@ -192,3 +192,51 @@ await api.post(
 ## 📝 Лицензия
 
 MIT
+
+# upstream'ы: поменяйте порты под ваш бек и фронт
+
+upstream user_backend { server 127.0.0.1:12410; }
+upstream user_frontend { server 127.0.0.1:12412; } # или ваш PORT
+
+server {
+listen 80;
+server_name u.aidew.ru;
+
+    # health
+    location /health {
+        proxy_pass http://user_backend;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+
+    # API (если без префикса /api – как у вас)
+    location ~ ^/(login|callback|admin|refresh|me|logout|servers|characters) {
+        proxy_pass http://user_backend;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # Статика фронта
+    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+        proxy_pass http://user_frontend;
+        proxy_set_header Host $host;
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+
+    # Остальное — на Next.js
+    location / {
+        proxy_pass http://user_frontend;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+}

@@ -143,6 +143,112 @@ go test -v ./...
 
 ---
 
+## 🚢 CI/CD (миграции через деплой)
+
+Ниже примеры, как запускать миграции автоматически в пайплайнах перед запуском приложения.
+
+### Docker Compose (CI/CD job)
+
+```bash
+# Выполнить миграции и завершить контейнер мигратора
+docker compose run --rm migrate
+
+# Запустить приложение (после успешных миграций)
+docker compose up -d app
+```
+
+Или одним шагом (если в compose настроен depends_on для `app` от `migrate`):
+
+```bash
+docker compose up -d --build
+```
+
+### GitHub Actions
+
+```yaml
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ secrets.REGISTRY }}
+          username: ${{ secrets.REGISTRY_USER }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+
+      - name: Build & push images
+        run: |
+          docker compose build
+          docker compose push || true
+
+      - name: Run DB migrations
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          docker compose run --rm migrate
+
+      - name: Start app
+        env:
+          DISCORD_CLIENT_ID: ${{ secrets.DISCORD_CLIENT_ID }}
+          DISCORD_CLIENT_SECRET: ${{ secrets.DISCORD_CLIENT_SECRET }}
+          DISCORD_REDIRECT_URI: ${{ secrets.DISCORD_REDIRECT_URI }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          FRONTEND_URL: ${{ secrets.FRONTEND_URL }}
+        run: |
+          docker compose up -d app
+```
+
+### GitLab CI
+
+```yaml
+stages:
+  - build
+  - migrate
+  - deploy
+
+variables:
+  DOCKER_DRIVER: overlay2
+
+build:
+  stage: build
+  script:
+    - docker compose build
+    - docker compose push || true
+
+migrate:
+  stage: migrate
+  script:
+    - docker compose run --rm migrate
+  when: on_success
+
+deploy:
+  stage: deploy
+  script:
+    - docker compose up -d app
+  needs: ["migrate"]
+```
+
+Примечания:
+
+- Обязательно передавайте `DATABASE_URL` (и при необходимости `MIGRATIONS_PATH`) в окружение задания миграций.
+- Следите, чтобы схемы БД и переменные окружения у `migrate` и `app` совпадали.
+- Если хостинг управляет Docker вне CI (например, на VM), используйте те же команды вручную или через SSH шаги в пайплайне.
+
+---
+
 ## 🛠️ Разработка
 
 ### Добавление новой миграции

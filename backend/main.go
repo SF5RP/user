@@ -46,6 +46,7 @@ func main() {
 	authHandler := handlers.NewAuthHandler(authService, logger, cfg)
 	userHandler := handlers.NewUserHandler(authService, logger)
 	characterHandler := handlers.NewCharacterHandler(characterService, logger)
+	statusHandler := handlers.NewStatusHandler(db, cfg, logger)
 
 	// Настраиваем Gin
 	if cfg.Environment == "production" {
@@ -60,6 +61,7 @@ func main() {
 
 	// Публичные маршруты
 	router.GET("/health", handlers.HealthCheck)
+	router.GET("/status", statusHandler.GetDetailedStatus)
 	router.GET("/login", authHandler.Login)
 	router.GET("/callback", authHandler.Callback)
 	router.POST("/refresh", authHandler.Refresh)
