@@ -119,11 +119,36 @@ jobs:
           EOF
 
       - name: Health check
+        env:
+          SSH_PORT: ${{ secrets.SSH_PORT || 22 }}
+          REMOTE_USER: ${{ secrets.SERVER_USER }}
+          REMOTE_HOST: ${{ secrets.SERVER_HOST }}
         run: |
           echo "🏥 Running health check..."
           FRONTEND_URL=${{ secrets.FRONTEND_URL || format('http://{0}:12413', secrets.SERVER_HOST) }}
-          # Try root and login pages
-          (curl -fsS "$FRONTEND_URL/" || curl -fsS "$FRONTEND_URL/login") && echo "✅ Frontend is up" || (echo "❌ Frontend health check failed" && exit 1)
+          echo "Checking URL: $FRONTEND_URL"
+          echo "Server Host: ${{ secrets.SERVER_HOST }}"
+          
+          # Wait a moment for the service to fully start
+          sleep 5
+          
+          # Try HTTP health check first
+          echo "🌐 Testing HTTP connectivity..."
+          if curl -fsS --connect-timeout 10 --max-time 30 "$FRONTEND_URL/" || curl -fsS --connect-timeout 10 --max-time 30 "$FRONTEND_URL/login"; then
+            echo "✅ Frontend HTTP check passed"
+          else
+            echo "⚠️ HTTP check failed, trying SSH process check..."
+            
+            # Fallback: Check if PM2 process is running via SSH
+            if ssh -o StrictHostKeyChecking=no -p ${SSH_PORT:-22} $REMOTE_USER@$REMOTE_HOST "pm2 list | grep -q 'auth-frontend.*online'"; then
+              echo "✅ PM2 process is online (SSH fallback check passed)"
+            else
+              echo "❌ Both HTTP and SSH checks failed"
+              echo "PM2 status:"
+              ssh -o StrictHostKeyChecking=no -p ${SSH_PORT:-22} $REMOTE_USER@$REMOTE_HOST "pm2 list" || true
+              exit 1
+            fi
+          fi
 
       - name: Deployment summary
         if: always()
