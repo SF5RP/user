@@ -52,6 +52,7 @@ jobs:
           go mod download
           go mod tidy
           CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -installsuffix cgo -o ${{ env.BINARY_NAME }} ./main.go
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -installsuffix cgo -o migrator ./cmd/migrator/main.go
 
       - name: Run tests
         working-directory: backend
@@ -62,6 +63,7 @@ jobs:
         run: |
           mkdir deploy_package
           cp -v ${{ env.BINARY_NAME }} deploy_package/
+          cp -v migrator deploy_package/
           cp -v env.example deploy_package/ || true
           cp -v ../README.md deploy_package/ || true
           cp -rv ../migrations deploy_package/ || true
@@ -85,6 +87,11 @@ jobs:
           scp -o StrictHostKeyChecking=no -P ${{ env.SSH_PORT }} \
               backend/deploy_package/${{ env.BINARY_NAME }} \
               ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:/home/${{ secrets.SERVER_USER }}/user-service/${{ env.BINARY_NAME }}.tmp
+
+          # Copy migrator binary
+          scp -o StrictHostKeyChecking=no -P ${{ env.SSH_PORT }} \
+              backend/deploy_package/migrator \
+              ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:/home/${{ secrets.SERVER_USER }}/user-service/migrator.tmp
 
           # Upload systemd unit file (temporary name)
           scp -o StrictHostKeyChecking=no -P ${{ env.SSH_PORT }} \
@@ -131,10 +138,12 @@ jobs:
 
           echo "📦 Replacing files atomically..."
           sudo mv -f /home/$USER/user-service/$BINARY_NAME.tmp /opt/user-service/$BINARY_NAME
+          sudo mv -f /home/$USER/user-service/migrator.tmp /opt/user-service/migrator
           sudo mv -f /home/$USER/user-service/.env.tmp /opt/user-service/.env
 
           echo "🔐 Setting permissions..."
           sudo chmod +x /opt/user-service/$BINARY_NAME
+          sudo chmod +x /opt/user-service/migrator
           sudo chown $USER:$USER /opt/user-service/.env
           sudo chmod 600 /opt/user-service/.env
 
@@ -154,10 +163,20 @@ jobs:
             echo "📝 Migrations found, applying..."
             # Run migrator if binary exists, otherwise manual approach
             if [ -f "migrator" ]; then
-              ./migrator up || echo "⚠️ Migrator executed (check logs for details)"
+              echo "🚀 Executing migrations..."
+              ./migrator up
+              if [ $? -eq 0 ]; then
+                echo "✅ Migrations applied successfully"
+              else
+                echo "❌ Migration failed!"
+                exit 1
+              fi
             else
               echo "⚠️ Migrator binary not found, ensure migrations are applied separately"
+              exit 1
             fi
+          else
+            echo "⚠️ No migrations directory found"
           fi
 
           echo "🚀 Starting user-service..."
