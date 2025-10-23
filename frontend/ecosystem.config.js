@@ -11,7 +11,7 @@ module.exports = {
       env: {
         NODE_ENV: "production",
         PORT: 12413,
-        NEXT_PUBLIC_API_URL: "http://localhost:12410",
+        NEXT_PUBLIC_API_URL: "https://u.aidew.ru/api",
       },
       error_file: "/home/deploy/user-service/logs/frontend-error.log",
       out_file: "/home/deploy/user-service/logs/frontend-out.log",
