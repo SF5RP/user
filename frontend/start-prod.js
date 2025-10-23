@@ -25,6 +25,7 @@ buildProcess.on("close", (code) => {
       ...process.env,
       NODE_ENV: "production",
       PORT: process.env.PORT || 3000,
+      HOSTNAME: "0.0.0.0", // Bind to all interfaces
     },
     shell: true,
   });
@@ -55,6 +56,9 @@ buildProcess.on("close", (code) => {
   });
 
   console.log("\n✅ Auth Frontend running in production mode!");
-  console.log(`🌐 Application: http://localhost:${process.env.PORT || 3000}`);
+  console.log(`🌐 Application: http://0.0.0.0:${process.env.PORT || 3000}`);
+  console.log(
+    `🔗 External access: http://[server-ip]:${process.env.PORT || 3000}`
+  );
   console.log("\n💡 To stop press Ctrl+C\n");
 });

@@ -121,7 +121,7 @@ jobs:
       - name: Health check
         run: |
           echo "🏥 Running health check..."
-          FRONTEND_URL=${{ secrets.FRONTEND_URL || format('http://{0}', secrets.SERVER_HOST) }}
+          FRONTEND_URL=${{ secrets.FRONTEND_URL || format('http://{0}:12413', secrets.SERVER_HOST) }}
           # Try root and login pages
           (curl -fsS "$FRONTEND_URL/" || curl -fsS "$FRONTEND_URL/login") && echo "✅ Frontend is up" || (echo "❌ Frontend health check failed" && exit 1)
 

@@ -3,7 +3,7 @@ module.exports = {
     {
       name: "auth-frontend",
       script: "start-prod.js",
-      cwd: "/home/deploy/user-service/frontend",
+      cwd: process.env.PWD || process.cwd(),
       instances: 1,
       autorestart: true,
       watch: false,
