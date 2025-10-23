@@ -34,8 +34,7 @@ export function useLogout() {
 
 export function useLogin() {
   return () => {
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "/api";
     window.location.href = `${apiUrl}/login`;
   };
 }
-

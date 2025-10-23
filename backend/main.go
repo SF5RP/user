@@ -59,34 +59,40 @@ func main() {
 	// Middleware для CORS
 	router.Use(middleware.CORS(cfg.FrontendURL))
 
-	// Публичные маршруты
+	// Health check endpoint (no /api prefix for monitoring)
 	router.GET("/health", handlers.HealthCheck)
-	router.GET("/status", statusHandler.GetDetailedStatus)
-	router.GET("/login", authHandler.Login)
-	router.GET("/callback", authHandler.Callback)
-	router.POST("/refresh", authHandler.Refresh)
 
-	// Защищенные маршруты
-	protected := router.Group("/")
-	protected.Use(middleware.AuthMiddleware(cfg.JWTSecret, logger))
+	// API routes with /api prefix
+	api := router.Group("/api")
 	{
-		protected.GET("/me", userHandler.GetMe)
+		// Публичные API маршруты
+		api.GET("/status", statusHandler.GetDetailedStatus)
+		api.GET("/login", authHandler.Login)
+		api.GET("/callback", authHandler.Callback)
+		api.POST("/refresh", authHandler.Refresh)
 
-		// Character routes
-		protected.POST("/characters", characterHandler.CreateCharacter)
-		protected.GET("/characters", characterHandler.GetUserCharacters)
-		protected.GET("/characters/:id", characterHandler.GetCharacter)
-		protected.PUT("/characters/:id", characterHandler.UpdateCharacter)
-		protected.DELETE("/characters/:id", characterHandler.DeleteCharacter)
-		protected.GET("/servers/:serverId/characters", characterHandler.GetCharactersByServer)
-	}
+		// Защищенные API маршруты
+		protected := api.Group("/")
+		protected.Use(middleware.AuthMiddleware(cfg.JWTSecret, logger))
+		{
+			protected.GET("/me", userHandler.GetMe)
 
-	// Админские маршруты
-	admin := protected.Group("/admin")
-	admin.Use(middleware.AdminMiddleware())
-	{
-		admin.GET("/users", userHandler.GetUsers)
-		admin.POST("/users/:id/role", userHandler.UpdateUserRole)
+			// Character routes
+			protected.POST("/characters", characterHandler.CreateCharacter)
+			protected.GET("/characters", characterHandler.GetUserCharacters)
+			protected.GET("/characters/:id", characterHandler.GetCharacter)
+			protected.PUT("/characters/:id", characterHandler.UpdateCharacter)
+			protected.DELETE("/characters/:id", characterHandler.DeleteCharacter)
+			protected.GET("/servers/:serverId/characters", characterHandler.GetCharactersByServer)
+		}
+
+		// Админские API маршруты
+		admin := protected.Group("/admin")
+		admin.Use(middleware.AdminMiddleware())
+		{
+			admin.GET("/users", userHandler.GetUsers)
+			admin.POST("/users/:id/role", userHandler.UpdateUserRole)
+		}
 	}
 
 	// Запускаем сервер
