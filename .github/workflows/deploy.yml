@@ -66,7 +66,7 @@ jobs:
           cp -v migrator deploy_package/
           cp -v env.example deploy_package/ || true
           cp -v ../README.md deploy_package/ || true
-          cp -rv migrations deploy_package/ || true
+          cp -rv ../backend/migrations deploy_package/ || true
 
       - name: Install SSH key
         uses: shimataro/ssh-key-action@v2
