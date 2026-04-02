@@ -13,10 +13,12 @@ type Config struct {
 	DiscordClientSecret string
 	DiscordRedirectURI  string
 	FrontendURL         string
+	AllowedReturnURLs   []string
 	JWTSecret           string
 	ServerPort          string
 	Environment         string
 	AdminDiscordIDs     []string
+	DatabaseURL         string
 }
 
 func Load() (*Config, error) {
@@ -26,11 +28,26 @@ func Load() (*Config, error) {
 	cfg := &Config{
 		DiscordClientID:     getEnv("DISCORD_CLIENT_ID", ""),
 		DiscordClientSecret: getEnv("DISCORD_CLIENT_SECRET", ""),
-		DiscordRedirectURI:  getEnv("DISCORD_REDIRECT_URI", "http://localhost:8080/callback"),
+		DiscordRedirectURI:  getEnv("DISCORD_REDIRECT_URI", "http://localhost:8080/api/callback"),
 		FrontendURL:         getEnv("FRONTEND_URL", "http://localhost:3000"),
 		JWTSecret:           getEnv("JWT_SECRET", "default-secret-key"),
 		ServerPort:          getEnv("SERVER_PORT", "8080"),
 		Environment:         getEnv("ENVIRONMENT", "development"),
+		DatabaseURL:         getEnv("DATABASE_URL", "postgres://authuser:userpassword@127.0.0.1:5432/userdb?sslmode=disable"),
+	}
+
+	if urls := getEnv("ALLOWED_RETURN_URLS", ""); urls != "" {
+		parts := strings.Split(urls, ",")
+		cleaned := make([]string, 0, len(parts))
+		for _, p := range parts {
+			v := strings.TrimSpace(p)
+			if v != "" {
+				cleaned = append(cleaned, v)
+			}
+		}
+		cfg.AllowedReturnURLs = cleaned
+	} else {
+		cfg.AllowedReturnURLs = []string{}
 	}
 
 	if ids := getEnv("ADMIN_DISCORD_IDS", ""); ids != "" {

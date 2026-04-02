@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { useAppSelector } from "@/shared/hooks/redux";
 import { useCurrentUser, useLogout } from "@/features/auth/hooks";
+import { useQueryClient } from "@tanstack/react-query";
 import styled from "@emotion/styled";
 import { PageContainer, Container } from "@/shared/ui/container";
 import { Card, CardTitle, CardContent } from "@/shared/ui/card";
@@ -84,6 +85,7 @@ const ButtonGroup = styled.div`
 
 export default function ProfilePage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { isAuthenticated, user } = useAppSelector((state) => state.auth);
   const { isLoading } = useCurrentUser();
   const { mutate: logout } = useLogout();
@@ -96,6 +98,9 @@ export default function ProfilePage() {
 
   const handleLogout = () => {
     logout();
+    // Очищаем весь кэш React Query
+    queryClient.clear();
+    // Перенаправляем на главную страницу
     router.push("/");
   };
 
@@ -171,7 +176,7 @@ export default function ProfilePage() {
           </CardContent>
           <ButtonGroup>
             {user.role === "admin" && (
-              <Button onClick={() => router.push("/admin/users")}>
+              <Button onClick={() => router.push("/admin")}>
                 Админ панель
               </Button>
             )}

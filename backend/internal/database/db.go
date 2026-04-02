@@ -18,7 +18,10 @@ func ConnectFromEnv() (*DB, error) {
 	if dsn == "" {
 		return nil, fmt.Errorf("DATABASE_URL is required")
 	}
+	return Connect(dsn)
+}
 
+func Connect(dsn string) (*DB, error) {
 	db, err := sql.Open("pgx", dsn)
 	if err != nil {
 		return nil, err

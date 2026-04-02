@@ -1,14 +1,15 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"os"
 
-	"user-service/internal/config"
-	"user-service/internal/database"
-	"user-service/internal/handlers"
-	"user-service/internal/middleware"
-	"user-service/internal/services"
+	"auth-service/internal/config"
+	"auth-service/internal/database"
+	"auth-service/internal/handlers"
+	"auth-service/internal/middleware"
+	"auth-service/internal/services"
 
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
@@ -20,6 +21,9 @@ func main() {
 	if err != nil {
 		log.Fatal("Failed to load config:", err)
 	}
+	
+	// Отладочный вывод
+	fmt.Printf("Database URL: %s\n", cfg.DatabaseURL)
 
 	// Настраиваем логгер
 	logger := logrus.New()
@@ -27,7 +31,7 @@ func main() {
 	logger.SetFormatter(&logrus.TextFormatter{})
 
 	// Подключаемся к БД
-	db, err := database.ConnectFromEnv()
+	db, err := database.Connect(cfg.DatabaseURL)
 	if err != nil {
 		logger.Fatalf("Failed to connect database: %v", err)
 	}
@@ -36,16 +40,21 @@ func main() {
 	// Репозитории
 	userRepo := database.NewUserRepo(db)
 	tokenRepo := database.NewTokenRepo(db)
-	characterRepo := database.NewCharacterRepo(db)
 
 	// Создаем сервисы (с БД)
 	authService := services.NewAuthService(cfg, logger).WithRepositories(userRepo, tokenRepo)
-	characterService := services.NewCharacterService(characterRepo, logger)
+	userService := services.NewUserService(logger, userRepo)
+
+	// Синхронизируем роли админов при запуске
+	if err := userService.SyncAdminRoles(cfg.AdminDiscordIDs); err != nil {
+		logger.WithError(err).Warn("Failed to sync admin roles on startup")
+	} else {
+		logger.WithField("admin_count", len(cfg.AdminDiscordIDs)).Info("Admin roles synchronized successfully")
+	}
 
 	// Создаем обработчики
 	authHandler := handlers.NewAuthHandler(authService, logger, cfg)
 	userHandler := handlers.NewUserHandler(authService, logger)
-	characterHandler := handlers.NewCharacterHandler(characterService, logger)
 	statusHandler := handlers.NewStatusHandler(db, cfg, logger)
 
 	// Настраиваем Gin
@@ -76,14 +85,6 @@ func main() {
 		protected.Use(middleware.AuthMiddleware(cfg.JWTSecret, logger))
 		{
 			protected.GET("/me", userHandler.GetMe)
-
-			// Character routes
-			protected.POST("/characters", characterHandler.CreateCharacter)
-			protected.GET("/characters", characterHandler.GetUserCharacters)
-			protected.GET("/characters/:id", characterHandler.GetCharacter)
-			protected.PUT("/characters/:id", characterHandler.UpdateCharacter)
-			protected.DELETE("/characters/:id", characterHandler.DeleteCharacter)
-			protected.GET("/servers/:serverId/characters", characterHandler.GetCharactersByServer)
 		}
 
 		// Админские API маршруты
@@ -105,5 +106,3 @@ func main() {
 		logger.Fatal("Failed to start server:", err)
 	}
 }
-
-

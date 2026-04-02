@@ -22,8 +22,8 @@ RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o migrator ./cmd/mi
 # Используем минимальный образ для запуска
 FROM alpine:latest
 
-# Устанавливаем ca-certificates для HTTPS запросов
-RUN apk --no-cache add ca-certificates
+# Обновляем индекс пакетов и устанавливаем ca-certificates для HTTPS запросов
+RUN apk update && apk --no-cache add ca-certificates
 
 WORKDIR /root/
 

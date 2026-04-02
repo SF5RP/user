@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "deploy:prep": "yarn build && node ./scripts/prepare-deploy.js"
   },
   "dependencies": {
     "@emotion/cache": "^11.13.1",

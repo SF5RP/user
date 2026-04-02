@@ -13,14 +13,14 @@ func CORS(frontendURL string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		origin := c.Request.Header.Get("Origin")
 
-		// Разрешаем запросы с фронтенда
-		if origin == frontendURL || origin == "http://localhost:3000" {
+		// Разрешаем запросы с фронтенда или любые localhost запросы для разработки
+		if origin == frontendURL || strings.HasPrefix(origin, "http://localhost:") {
 			c.Header("Access-Control-Allow-Origin", origin)
 		} else {
 			c.Header("Access-Control-Allow-Origin", frontendURL)
 		}
 
-		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
 		c.Header("Access-Control-Allow-Headers", "Origin, Content-Type, Accept, Authorization, X-Requested-With")
 		c.Header("Access-Control-Allow-Credentials", "true")
 		c.Header("Access-Control-Max-Age", "86400") // 24 часа

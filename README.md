@@ -1,1 +1,109 @@
-# 🔐 User Service (Go + Next.js + Discord OAuth2)Полноценная система авторизации с бэкендом на Go и современным фронтендом на Next.js 15.## 🎯 Возможности- ✅ Авторизация через Discord OAuth2- ✅ JWT токены (Access + Refresh)- ✅ Управление ролями пользователей- ✅ Защищенные API маршруты- ✅ Современный UI на Next.js 15- ✅ Redux Toolkit + React Query- ✅ PostgreSQL база данных- ✅ Docker поддержка## 🚀 Быстрый старт**У вас уже есть GitHub Organization с другим проектом?**  → [Деплой для существующей организации](./docs/DEPLOY_EXISTING_ORG.md) ⚡Полная инструкция: [DEPLOYMENT.md](./docs/DEPLOYMENT.md)### Кратко:1. **Настройте Discord Application** и получите Client ID/Secret2. **Настройте переменные окружения:**   ```bash   # Для Docker   cp .env.example .env   # Для локального backend   cp backend/env.example backend/config.env   ```3. **Запустите через Docker (рекомендуется):**   ```bash   docker-compose up   ```   **Или локально:**   ```bash   # Backend   cd backend   go run cmd/migrator/main.go up  # миграции   go run main.go                  # сервер   # Frontend (в отдельном терминале)   cd frontend   npm install   npm run dev   ```Откройте http://localhost:3000 в браузере!## 📡 API Endpoints### Публичные маршруты- `GET /health` - Проверка состояния сервиса- `GET /login` - Начало процесса авторизации через Discord- `GET /callback` - Обработка callback от Discord OAuth2### Защищенные маршруты (требуют JWT токен)- `GET /me` - Получение информации о текущем пользователе- `POST /refresh` - Обновление access токена### Админские маршруты (требуют роль admin)- `GET /admin/users` - Список всех пользователей- `POST /admin/users/:id/role` - Изменение роли пользователя## 🔧 Структура проекта```auth/├── main.go                    # Backend точка входа├── config.env                 # Backend конфигурация├── cmd/│   └── migrator/             # Миграции БД├── internal/                 # Backend код│   ├── config/              # Конфигурация│   ├── database/            # Репозитории БД│   ├── handlers/            # HTTP обработчики│   ├── middleware/          # Middleware (auth, CORS)│   ├── models/              # Модели данных│   └── services/            # Бизнес-логика├── migrations/              # SQL миграции├── frontend/                # Frontend приложение│   ├── src/│   │   ├── app/            # Next.js страницы│   │   ├── features/       # Feature-модули│   │   └── shared/         # Общий код│   └── package.json├── docker-compose.yml       # Docker конфигурация├── DEPLOYMENT.md           # Инструкция по развертыванию└── README.md               # Этот файл```## 🗄️ База данныхИспользуется **PostgreSQL** для постоянного хранения данных:### Таблицы:- `users` - пользователи с Discord данными и ролями  - `id`, `discord_id`, `username`, `discriminator`, `avatar`, `role`, `created_at`- `refresh_tokens` - refresh токены для обновления access токенов  - `id`, `user_id`, `token`, `expires_at`, `created_at`### Миграции:```bash# Применить миграцииgo run cmd/migrator/main.go up# Откатить миграцииgo run cmd/migrator/main.go down```## 🔐 Аутентификация1. Пользователь переходит на `/login`2. Происходит редирект на Discord OAuth23. После авторизации Discord перенаправляет на `/callback`4. Сервер обменивает код на access_token и получает данные пользователя5. Создается/обновляется запись пользователя в БД6. Генерируются JWT access и refresh токены7. Токены возвращаются клиенту## 🎭 Роли пользователей- `user` - обычный пользователь (по умолчанию)- `moderator` - модератор- `admin` - администратор## 📁 Структура проекта```user-service/├── backend/           # Go Backend│   ├── cmd/          # CLI утилиты│   ├── internal/     # Внутренняя логика│   ├── migrations/   # SQL миграции│   └── main.go       # Точка входа│├── frontend/         # Next.js Frontend│   └── src/         # React компоненты│├── docs/            # Документация├── deploy/          # Конфигурация деплоя├── scripts/         # Вспомогательные скрипты└── .github/         # CI/CD```## 📦 Технологии### Backend- **Go 1.22+** - основной язык- **Gin** - веб-фреймворк- **PostgreSQL** - база данных- **JWT** - токены авторизации- **Discord OAuth2** - авторизация- **Docker** - контейнеризация### Frontend- **Next.js 15** - React фреймворк с App Router- **React 19** + **TypeScript** - UI библиотека- **Redux Toolkit** - глобальное состояние- **React Query** - управление серверным состоянием- **Emotion** - CSS-in-JS стилизация- **react-hook-form** - управление формами## 📸 Скриншоты### Главная страницаПриветственная страница с кнопкой входа через Discord### Профиль пользователяОтображение информации пользователя: аватар, имя, роль, дата регистрации### Админ панельУправление пользователями и их ролями (только для администраторов)## 🔗 Дополнительная документация- [📖 DEPLOYMENT.md](./DEPLOYMENT.md) - Полная инструкция по развертыванию- [📝 init.md](./init.md) - План разработки и прогресс- [📊 PROJECT_STATUS.md](./PROJECT_STATUS.md) - Текущий статус проекта- [📁 frontend/README.md](./frontend/README.md) - Документация фронтенда## 🧪 Тестирование```bash# Тестирование Backend API./test-api.sh       # Linux/Mac./test-api.ps1      # Windows# Health checkcurl http://localhost:8080/health```## 🐳 Docker```bash# Запуск всего стека (БД + Backend + Frontend)docker-compose up -d# Просмотр логовdocker-compose logs -f# Остановкаdocker-compose down```## 📝 Следующие шаги- [ ] Добавить email уведомления- [ ] Добавить rate limiting- [ ] Добавить мониторинг (Prometheus/Grafana)- [ ] Написать unit и e2e тесты- [ ] Настроить CI/CD pipeline- [ ] Добавить поддержку других OAuth провайдеров- [ ] Добавить темную тему на фронтенде## 🤝 Вклад в проектПриветствуются Pull Request'ы и Issues!## 📄 ЛицензияMIT---⭐ **Звезду проекту, если он вам помог!**
+# Auth Service
+
+Сервис авторизации на `Go + Next.js` с Discord OAuth2, JWT и PostgreSQL.
+
+## Что в репозитории
+
+- `backend/` — API, OAuth, JWT, миграции и бизнес-логика
+- `frontend/` — Next.js App Router интерфейс
+- `deploy/` — `systemd` и nginx-примеры для production
+- `docs/DEPLOYMENT.md` — актуальная инструкция по деплою без Docker
+- `docs/UPDATE_DATABASE.md` — заметки по миграциям и обновлению БД
+- `docs/AUTH_INTEGRATION.md` — интеграция `auth-service` в остальные сервисы
+
+## Локальный запуск
+
+1. Скопируйте [backend/env.example](./backend/env.example) в `backend/config.env` и заполните значения.
+2. Создайте `frontend/.env.local`:
+
+```env
+NEXT_PUBLIC_API_URL=http://localhost:8080/api
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+```
+
+3. Поднимите PostgreSQL и примените миграции:
+
+```bash
+cd backend
+go run ./cmd/migrator
+```
+
+4. Запустите backend:
+
+```bash
+cd backend
+go run .
+```
+
+5. Запустите frontend:
+
+```bash
+cd frontend
+yarn install
+yarn dev
+```
+
+## Production deploy
+
+Используется release-based схема без Docker:
+
+- backend и frontend собираются отдельно
+- на сервер загружаются `tar.gz` bundle
+- release распаковывается в `/srv/auth-service/releases/...`
+- `current/backend` и `current/frontend` переключаются симлинком
+- сервисы запускаются через `systemd`
+
+Backend release:
+
+```bash
+cd backend
+make deploy-prep
+tar -czf auth-service-backend.tar.gz -C dist auth-service-backend
+```
+
+Frontend release:
+
+```bash
+cd frontend
+export NEXT_PUBLIC_API_URL=https://your-domain/api
+yarn deploy:prep
+tar -czf auth-service-frontend.tar.gz -C dist auth-service-frontend
+```
+
+Серверные скрипты:
+
+```bash
+./backend/deploy/deploy_backend.sh /path/to/auth-service-backend.tar.gz
+./frontend/deploy/deploy_frontend.sh /path/to/auth-service-frontend.tar.gz
+```
+
+Подробности: [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md)
+
+## Основные маршруты API
+
+- `GET /health`
+- `GET /api/login`
+- `GET /api/login?return_to=https://app.example.com/auth/callback`
+- `GET /api/callback`
+- `POST /api/refresh`
+- `GET /api/me`
+- `GET /api/admin/users`
+- `POST /api/admin/users/:id/role`
+
+## Multi-Service Auth
+
+Для интеграции с другими сервисами поддерживается `return_to`:
+
+```text
+GET /api/login?return_to=https://app.example.com/auth/callback
+```
+
+После успешного Discord login пользователь будет возвращён в разрешённый callback URL с `access_token` и `refresh_token`.
+
+Разрешённые внешние callback URL задаются через `ALLOWED_RETURN_URLS`.
+
+## Документация
+
+- [backend/README.md](./backend/README.md)
+- [frontend/README.md](./frontend/README.md)
+- [docs/README.md](./docs/README.md)

@@ -19,27 +19,27 @@ export const Button = styled.button<ButtonProps>`
 
   font-weight: 600;
   border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid ${(props) => props.theme.colors.border};
   cursor: pointer;
   transition: all 0.2s ease;
   width: ${(props) => (props.fullWidth ? "100%" : "auto")};
 
   background: ${(props) =>
     props.variant === "secondary"
-      ? "#343a40"
+      ? props.theme.colors.surfaceSecondary
       : props.variant === "danger"
-      ? "#c92a2a"
-      : "#5562e0"};
+      ? props.theme.colors.error
+      : props.theme.colors.primary};
 
-  color: #e9ecef;
+  color: ${(props) => props.theme.colors.text};
 
   &:hover:not(:disabled) {
     background: ${(props) =>
       props.variant === "secondary"
-        ? "#3b4248"
+        ? props.theme.colors.surface
         : props.variant === "danger"
-        ? "#a61e1e"
-        : "#4853c8"};
+        ? props.theme.colors.error
+        : props.theme.colors.primaryHover};
     transform: translateY(-1px);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
   }

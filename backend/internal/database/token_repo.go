@@ -1,7 +1,7 @@
 package database
 
 import (
-	"user-service/internal/models"
+	"auth-service/internal/models"
 )
 
 type TokenRepo struct {

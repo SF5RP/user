@@ -33,8 +33,12 @@ export function useLogout() {
 }
 
 export function useLogin() {
-  return () => {
+  return (returnTo?: string) => {
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || "/api";
-    window.location.href = `${apiUrl}/login`;
+    const loginUrl = new URL(`${apiUrl}/login`, window.location.origin);
+    if (returnTo) {
+      loginUrl.searchParams.set("return_to", returnTo);
+    }
+    window.location.href = loginUrl.toString();
   };
 }

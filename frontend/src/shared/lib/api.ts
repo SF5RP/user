@@ -29,7 +29,7 @@ function camelCaseKeys<T>(input: T): T {
   return input;
 }
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "/api";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api";
 
 interface RequestOptions extends RequestInit {
   requiresAuth?: boolean;
@@ -55,7 +55,15 @@ async function request<T>(
     }
   }
 
-  const response = await fetch(`${API_URL}${endpoint}`, {
+  const fullUrl = `${API_URL}${endpoint}`;
+  console.log("API request:", {
+    url: fullUrl,
+    method: restOptions.method || "GET",
+    headers: requestHeaders,
+    body: restOptions.body,
+  });
+
+  const response = await fetch(fullUrl, {
     ...restOptions,
     headers: requestHeaders,
     credentials: "include",
@@ -64,6 +72,11 @@ async function request<T>(
   });
 
   if (!response.ok) {
+    console.log("API response error:", {
+      status: response.status,
+      statusText: response.statusText,
+      url: fullUrl,
+    });
     if (response.status === 401) {
       Cookies.remove("accessToken");
       Cookies.remove("refreshToken");
@@ -87,6 +100,10 @@ async function request<T>(
   }
 
   const json = (await response.json()) as unknown;
+  console.log("API response success:", {
+    url: fullUrl,
+    data: json,
+  });
 
   return camelCaseKeys(json as T);
 }
@@ -106,6 +123,13 @@ export const api = {
     request<T>(endpoint, {
       ...options,
       method: "PUT",
+      body: JSON.stringify(data),
+    }),
+
+  patch: <T>(endpoint: string, data?: unknown, options?: RequestOptions) =>
+    request<T>(endpoint, {
+      ...options,
+      method: "PATCH",
       body: JSON.stringify(data),
     }),
 

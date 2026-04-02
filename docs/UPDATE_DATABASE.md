@@ -1,1 +1,41 @@
-# 📝 Обновление базы данныхЕсли вы уже запускали старую версию проекта, вам нужно обновить структуру базы данных.## Вариант 1: Автоматическое обновление (рекомендуется)Просто запустите миграции заново:```bashgo run cmd/migrator/main.go up```Миграции умные - они применят только те изменения, которых еще нет в БД.## Вариант 2: Ручное обновление через SQLЕсли вы предпочитаете ручное управление, выполните SQL:```sql-- Добавляем поле discriminatorALTER TABLE users ADD COLUMN IF NOT EXISTS discriminator VARCHAR(10) NOT NULL DEFAULT '0';```## Вариант 3: Пересоздание БД с нуля⚠️ **Внимание:** Это удалит все данные!```bash# Откатываем все миграцииgo run cmd/migrator/main.go down# Применяем зановоgo run cmd/migrator/main.go up```## Проверка обновленияПосле обновления проверьте структуру таблицы:```sql\d users  -- В psql```Или через SQL:```sqlSELECT column_name, data_type, is_nullable, column_defaultFROM information_schema.columnsWHERE table_name = 'users'ORDER BY ordinal_position;```Должны быть следующие поля:- id (integer)- discord_id (varchar)- username (varchar)- **discriminator (varchar)** ← новое поле- avatar (text)- role (varchar)- created_at (timestamp)## Обновление через DockerЕсли вы используете Docker:```bash# Остановите контейнерыdocker-compose down# Запустите снова (миграции применятся автоматически при старте backend)docker-compose up -d```## Проблемы?### "column already exists"Это нормально - значит поле уже добавлено. Продолжайте работу.### "relation does not exist"Возможно, БД не была инициализирована. Выполните:```bashgo run cmd/migrator/main.go up```### Другие ошибкиПроверьте подключение к БД в `config.env`:```envDB_HOST=localhostDB_PORT=5432DB_USER=authDB_PASSWORD=authpasswordDB_NAME=authdb```## После обновленияПосле успешного обновления БД:1. Перезапустите backend:   ```bash   go run main.go   ```2. Перезапустите frontend:   ```bash   cd frontend   npm run dev   ```3. Войдите заново через DiscordГотово! 🎉
+# Обновление базы данных
+
+Проект использует SQL-миграции из [backend/migrations](../backend/migrations).
+
+## Применить миграции
+
+```bash
+cd backend
+go run ./cmd/migrator
+```
+
+Мигратор читает:
+
+- `DATABASE_URL`
+- `MIGRATIONS_PATH` — опционально, по умолчанию `migrations`
+
+## Локальный запуск
+
+```powershell
+$env:DATABASE_URL="postgres://auth:password@localhost:5432/authdb?sslmode=disable"
+cd backend
+go run ./cmd/migrator
+```
+
+## Проверка структуры
+
+Пример через `psql`:
+
+```sql
+\dt
+\d users
+\d refresh_tokens
+```
+
+## Полный пересозданный инстанс
+
+1. Создайте пустую БД.
+2. Укажите корректный `DATABASE_URL`.
+3. Запустите мигратор.
+
+Источником истины считаются текущие SQL-файлы в `backend/migrations`, а не отдельные исторические инструкции.

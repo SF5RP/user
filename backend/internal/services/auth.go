@@ -7,8 +7,8 @@ import (
 	"sync"
 	"time"
 
-	"user-service/internal/config"
-	"user-service/internal/models"
+	"auth-service/internal/config"
+	"auth-service/internal/models"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/sirupsen/logrus"
@@ -34,6 +34,7 @@ func NewAuthService(cfg *config.Config, logger *logrus.Logger) *AuthService {
 type UserRepository interface {
 	UpsertByDiscordID(discordID, username, discriminator, avatar string) (*models.User, error)
 	FindByID(id uint) (*models.User, error)
+	FindByDiscordID(discordID string) (*models.User, error)
 	FindAll() ([]models.User, error)
 	UpdateRole(id uint, role string) error
 }
@@ -186,5 +187,4 @@ func (s *AuthService) UpdateUserRole(id uint, role string) error {
 	}
 	return s.userRepo.UpdateRole(id, role)
 }
-
 

@@ -128,10 +128,10 @@ jobs:
           FRONTEND_URL=${{ secrets.FRONTEND_URL || format('http://{0}:12413', secrets.SERVER_HOST) }}
           echo "Checking URL: $FRONTEND_URL"
           echo "Server Host: ${{ secrets.SERVER_HOST }}"
-          
+
           # Wait a moment for the service to fully start
           sleep 5
-          
+
           # Try HTTP health check first
           echo "🌐 Testing HTTP connectivity..."
           if curl -fsS --connect-timeout 10 --max-time 30 "$FRONTEND_URL/" || curl -fsS --connect-timeout 10 --max-time 30 "$FRONTEND_URL/login"; then

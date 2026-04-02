@@ -3,13 +3,9 @@
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import styled from "@emotion/styled";
-import { useEffect } from "react";
 import { useState } from "react";
 import { useAppSelector } from "@/shared/hooks/redux";
 import { useCurrentUser } from "@/features/auth/hooks";
-import { useServers } from "@/features/servers/hooks";
-import { useRouter } from "next/navigation";
-import { useServerContext } from "@/shared/contexts/serverContext";
 import Image from "next/image";
 
 const SidebarContainer = styled.div`
@@ -141,59 +137,6 @@ const Overlay = styled.div<{ open: boolean }>`
   }
 `;
 
-const ServerSelector = styled.div`
-  margin: 0 20px 20px;
-  padding: 16px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 8px;
-`;
-
-const CurrentServer = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 12px;
-`;
-
-const ServerEmoji = styled.span`
-  font-size: 16px;
-`;
-
-const ServerInfo = styled.div`
-  flex: 1;
-  min-width: 0;
-`;
-
-const ServerName = styled.div`
-  color: #e9ecef;
-  font-weight: 600;
-  font-size: 14px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-`;
-
-// Removed unused ServerId styled component to satisfy lints
-
-const ChangeServerButton = styled.button`
-  width: 100%;
-  padding: 8px 12px;
-  background: rgba(34, 197, 94, 0.1);
-  border: 1px solid rgba(34, 197, 94, 0.3);
-  border-radius: 6px;
-  color: #22c55e;
-  font-size: 12px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s ease;
-
-  &:hover {
-    background: rgba(34, 197, 94, 0.2);
-    border-color: rgba(34, 197, 94, 0.5);
-  }
-`;
-
 interface SidebarProps {
   isOpen: boolean;
   onToggle: () => void;
@@ -201,45 +144,8 @@ interface SidebarProps {
 
 export function Sidebar({ isOpen, onToggle }: SidebarProps) {
   const pathname = usePathname();
-  const router = useRouter();
   const { isAuthenticated } = useAppSelector((state) => state.auth);
   const { data: user } = useCurrentUser();
-  const { data: servers } = useServers();
-  const { selectedServer, setSelectedServer } = useServerContext();
-
-  // Определяем текущий сервер из URL или из сохраненного состояния
-  const getCurrentServer = () => {
-    if (pathname.startsWith("/servers/") && servers) {
-      const serverSlug = pathname.split("/")[2];
-      const serverFromUrl = servers.find(
-        (srv: { id: string }) => srv.id === serverSlug
-      );
-      if (serverFromUrl) {
-        return serverFromUrl;
-      }
-    }
-    // Возвращаем сохраненный сервер, если не находимся на странице сервера
-    return selectedServer;
-  };
-
-  const currentServer = getCurrentServer();
-
-  // Обновляем выбранный сервер при изменении URL или списка серверов
-  useEffect(() => {
-    if (pathname.startsWith("/servers/") && servers) {
-      const serverSlug = pathname.split("/")[2];
-      const serverFromUrl = servers.find(
-        (srv: { id: string }) => srv.id === serverSlug
-      );
-      if (serverFromUrl && serverFromUrl.id !== selectedServer?.id) {
-        setSelectedServer(serverFromUrl);
-      }
-    }
-  }, [pathname, servers, selectedServer, setSelectedServer]);
-
-  const charactersHref = currentServer
-    ? `/servers/${currentServer.id}/characters`
-    : "/servers";
 
   const navigationItems = [
     {
@@ -250,12 +156,6 @@ export function Sidebar({ isOpen, onToggle }: SidebarProps) {
           icon: "🏠",
           label: "Главная",
           show: true,
-        },
-        {
-          href: charactersHref,
-          icon: "🧍",
-          label: "Персонажи",
-          show: isAuthenticated,
         },
         {
           href: "/profile",
@@ -282,22 +182,8 @@ export function Sidebar({ isOpen, onToggle }: SidebarProps) {
       <SidebarContainer className={isOpen ? "open" : ""}>
         <SidebarScroll>
           <Logo>
-            <LogoText>User Service</LogoText>
+            <LogoText>Auth Service</LogoText>
           </Logo>
-
-          {currentServer && isAuthenticated && (
-            <ServerSelector>
-              <CurrentServer>
-                <ServerEmoji>{currentServer.emoji}</ServerEmoji>
-                <ServerInfo>
-                  <ServerName>{currentServer.name}</ServerName>
-                </ServerInfo>
-              </CurrentServer>
-              <ChangeServerButton onClick={() => void router.push("/servers")}>
-                Сменить сервер
-              </ChangeServerButton>
-            </ServerSelector>
-          )}
 
           {navigationItems.map((section) => (
             <NavSection key={section.title}>

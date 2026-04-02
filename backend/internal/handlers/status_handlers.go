@@ -7,8 +7,8 @@ import (
 	"runtime"
 	"time"
 
-	"user-service/internal/config"
-	"user-service/internal/database"
+	"auth-service/internal/config"
+	"auth-service/internal/database"
 
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
@@ -63,13 +63,14 @@ type MemoryInfo struct {
 }
 
 type ConfigInfo struct {
-	DiscordClientID     string `json:"discord_client_id"`
-	DiscordRedirectURI  string `json:"discord_redirect_uri"`
-	FrontendURL         string `json:"frontend_url"`
-	ServerPort          string `json:"server_port"`
-	Environment         string `json:"environment"`
-	HasJWTSecret        bool   `json:"has_jwt_secret"`
-	AdminCount          int    `json:"admin_count"`
+	DiscordClientID     string   `json:"discord_client_id"`
+	DiscordRedirectURI  string   `json:"discord_redirect_uri"`
+	FrontendURL         string   `json:"frontend_url"`
+	ServerPort          string   `json:"server_port"`
+	Environment         string   `json:"environment"`
+	HasJWTSecret        bool     `json:"has_jwt_secret"`
+	AdminCount          int      `json:"admin_count"`
+	AdminDiscordIDs     []string `json:"admin_discord_ids"`
 }
 
 func (h *StatusHandler) GetDetailedStatus(c *gin.Context) {
@@ -77,7 +78,7 @@ func (h *StatusHandler) GetDetailedStatus(c *gin.Context) {
 	status := &SystemStatus{
 		Status:      "ok",
 		Timestamp:   time.Now(),
-		Service:     "user-service",
+		Service:     "auth-service",
 		Version:     "1.0.0", // Можно получать из git или переменной окружения
 		Environment: h.cfg.Environment,
 		Components:  make(map[string]Component),
@@ -322,6 +323,7 @@ func (h *StatusHandler) getConfigInfo() ConfigInfo {
 		Environment:        h.cfg.Environment,
 		HasJWTSecret:       h.cfg.JWTSecret != "default-secret-key",
 		AdminCount:         len(h.cfg.AdminDiscordIDs),
+		AdminDiscordIDs:    h.cfg.AdminDiscordIDs,
 	}
 }
 

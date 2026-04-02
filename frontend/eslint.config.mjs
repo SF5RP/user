@@ -17,8 +17,6 @@ export default [
       "dist/**",
       "node_modules/**",
       "next-env.d.ts",
-      "ecosystem.config.js",
-      "start-prod.js",
       "next.config.js",
       "eslint.config.mjs",
     ],

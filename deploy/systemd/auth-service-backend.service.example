@@ -1,0 +1,24 @@
+# Installation:
+#   sudo cp auth-service-backend.service.example /etc/systemd/system/auth-service-backend.service
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now auth-service-backend
+#
+# Sudoers example for deploy user:
+#   deploy ALL=(ALL) NOPASSWD:/bin/systemctl restart auth-service-backend
+
+[Unit]
+Description=Auth Service backend API
+After=network.target
+
+[Service]
+Type=simple
+User=deploy
+Group=deploy
+WorkingDirectory=/srv/auth-service/current/backend
+EnvironmentFile=/srv/auth-service/shared/backend/env/backend.env
+ExecStart=/srv/auth-service/current/backend/auth-service
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

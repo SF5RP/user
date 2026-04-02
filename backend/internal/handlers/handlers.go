@@ -3,14 +3,18 @@ package handlers
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
+	"time"
 
-	"user-service/internal/config"
-	"user-service/internal/services"
+	"auth-service/internal/config"
+	"auth-service/internal/services"
 
 	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/sirupsen/logrus"
 )
 
@@ -43,17 +47,33 @@ func NewUserHandler(authService *services.AuthService, logger *logrus.Logger) *U
 func HealthCheck(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"status":  "ok",
-		"service": "user-service",
+		"service": "auth-service",
 	})
 }
 
 func (h *AuthHandler) Login(c *gin.Context) {
+	returnTo := c.Query("return_to")
+	if returnTo == "" {
+		returnTo = defaultReturnTo(h.cfg)
+	} else if !isAllowedReturnTo(returnTo, h.cfg) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "return_to is not allowed"})
+		return
+	}
+
+	state, err := h.buildOAuthState(returnTo)
+	if err != nil {
+		h.logger.WithError(err).Error("Failed to generate OAuth state")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate oauth state"})
+		return
+	}
+
 	q := url.Values{}
 	q.Set("client_id", h.cfg.DiscordClientID)
 	q.Set("redirect_uri", h.cfg.DiscordRedirectURI)
 	q.Set("response_type", "code")
 	q.Set("scope", "identify")
 	q.Set("prompt", "consent")
+	q.Set("state", state)
 
 	authURL := url.URL{
 		Scheme:   "https",
@@ -69,6 +89,13 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 	code := c.Query("code")
 	if code == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Authorization code is required"})
+		return
+	}
+
+	returnTo, err := h.parseOAuthState(c.Query("state"))
+	if err != nil {
+		h.logger.WithError(err).Warn("Invalid OAuth state")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid oauth state"})
 		return
 	}
 
@@ -163,8 +190,13 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 		return
 	}
 
-	// Перенаправляем на фронтенд с токенами
-	callbackURL := h.cfg.FrontendURL + "/callback?access_token=" + accessToken + "&refresh_token=" + refreshToken
+	callbackURL, err := appendTokensToReturnURL(returnTo, accessToken, refreshToken)
+	if err != nil {
+		h.logger.WithError(err).Error("Failed to build callback URL")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to build callback url"})
+		return
+	}
+
 	c.Redirect(http.StatusFound, callbackURL)
 }
 
@@ -241,6 +273,93 @@ func (h *UserHandler) UpdateUserRole(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "User role updated successfully"})
+}
+
+type oauthStateClaims struct {
+	ReturnTo string `json:"return_to"`
+	Purpose  string `json:"purpose"`
+	jwt.RegisteredClaims
+}
+
+func (h *AuthHandler) buildOAuthState(returnTo string) (string, error) {
+	claims := oauthStateClaims{
+		ReturnTo: returnTo,
+		Purpose:  "oauth-return",
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(10 * time.Minute)),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+		},
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	return token.SignedString([]byte(h.cfg.JWTSecret))
+}
+
+func (h *AuthHandler) parseOAuthState(state string) (string, error) {
+	if state == "" {
+		return "", fmt.Errorf("missing state")
+	}
+
+	token, err := jwt.ParseWithClaims(state, &oauthStateClaims{}, func(token *jwt.Token) (interface{}, error) {
+		return []byte(h.cfg.JWTSecret), nil
+	})
+	if err != nil {
+		return "", err
+	}
+
+	claims, ok := token.Claims.(*oauthStateClaims)
+	if !ok || !token.Valid {
+		return "", fmt.Errorf("invalid state claims")
+	}
+
+	if claims.Purpose != "oauth-return" {
+		return "", fmt.Errorf("invalid state purpose")
+	}
+
+	if claims.ReturnTo == "" || !isAllowedReturnTo(claims.ReturnTo, h.cfg) {
+		return "", fmt.Errorf("return_to is not allowed")
+	}
+
+	return claims.ReturnTo, nil
+}
+
+func defaultReturnTo(cfg *config.Config) string {
+	return strings.TrimRight(cfg.FrontendURL, "/") + "/callback"
+}
+
+func isAllowedReturnTo(returnTo string, cfg *config.Config) bool {
+	parsedURL, err := url.Parse(returnTo)
+	if err != nil || parsedURL.Scheme == "" || parsedURL.Host == "" || parsedURL.Fragment != "" {
+		return false
+	}
+
+	allowed := append([]string{defaultReturnTo(cfg)}, cfg.AllowedReturnURLs...)
+	for _, candidate := range allowed {
+		normalized := strings.TrimSpace(candidate)
+		if normalized == "" {
+			continue
+		}
+
+		if returnTo == normalized || strings.HasPrefix(returnTo, normalized+"?") {
+			return true
+		}
+	}
+
+	return false
+}
+
+func appendTokensToReturnURL(returnTo, accessToken, refreshToken string) (string, error) {
+	parsedURL, err := url.Parse(returnTo)
+	if err != nil {
+		return "", err
+	}
+
+	query := parsedURL.Query()
+	query.Set("access_token", accessToken)
+	query.Set("refresh_token", refreshToken)
+	parsedURL.RawQuery = query.Encode()
+
+	return parsedURL.String(), nil
 }
 
 

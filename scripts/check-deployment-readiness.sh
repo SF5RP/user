@@ -69,16 +69,22 @@ fi
 # ============================================
 section "🔧 Backend Configuration"
 
-if [ -f "env.example" ]; then
-    check_pass "env.example exists"
+if [ -f "backend/env.example" ]; then
+    check_pass "backend/env.example exists"
 else
-    check_fail "env.example missing"
+    check_fail "backend/env.example missing"
 fi
 
-if [ -f "deploy/systemd/user-service.service" ]; then
-    check_pass "Systemd service file exists"
+if [ -f "deploy/systemd/user-service-backend.service.example" ]; then
+    check_pass "Backend systemd service example exists"
 else
-    check_fail "Systemd service file missing (deploy/systemd/user-service.service)"
+    check_fail "Backend systemd service example missing (deploy/systemd/user-service-backend.service.example)"
+fi
+
+if [ -f "deploy/systemd/user-service-frontend.service.example" ]; then
+    check_pass "Frontend systemd service example exists"
+else
+    check_fail "Frontend systemd service example missing (deploy/systemd/user-service-frontend.service.example)"
 fi
 
 if [ -f "deploy/nginx/user-service.conf" ]; then
@@ -92,18 +98,6 @@ if [ -f "deploy/nginx/user-service.conf" ]; then
     fi
 else
     check_fail "Nginx configuration missing (deploy/nginx/user-service.conf)"
-fi
-
-if [ -f "deploy/scripts/install.sh" ]; then
-    check_pass "Installation script exists"
-    
-    if [ -x "deploy/scripts/install.sh" ]; then
-        check_pass "Installation script is executable"
-    else
-        check_warn "Installation script is not executable (run: chmod +x deploy/scripts/install.sh)"
-    fi
-else
-    check_fail "Installation script missing (deploy/scripts/install.sh)"
 fi
 
 # ============================================
@@ -120,17 +114,12 @@ if [ -d "frontend" ]; then
         check_fail "Frontend package.json missing"
     fi
     
-    if [ -f "frontend/start-prod.js" ]; then
-        check_pass "Production start script exists"
+    if [ -f "frontend/scripts/prepare-deploy.js" ]; then
+        check_pass "Frontend deploy preparation script exists"
     else
-        check_fail "Production start script missing (frontend/start-prod.js)"
+        check_fail "Frontend deploy preparation script missing (frontend/scripts/prepare-deploy.js)"
     fi
     
-    if [ -f "frontend/ecosystem.config.js" ]; then
-        check_pass "PM2 configuration exists"
-    else
-        check_warn "PM2 configuration missing (frontend/ecosystem.config.js) - optional"
-    fi
 else
     check_fail "Frontend directory missing"
 fi
@@ -140,22 +129,22 @@ fi
 # ============================================
 section "🔨 Go Backend"
 
-if [ -f "main.go" ]; then
-    check_pass "main.go exists"
+if [ -f "backend/main.go" ]; then
+    check_pass "backend/main.go exists"
 else
-    check_fail "main.go missing"
+    check_fail "backend/main.go missing"
 fi
 
-if [ -f "go.mod" ]; then
-    check_pass "go.mod exists"
+if [ -f "backend/go.mod" ]; then
+    check_pass "backend/go.mod exists"
 else
-    check_fail "go.mod missing"
+    check_fail "backend/go.mod missing"
 fi
 
-if [ -d "internal" ]; then
-    check_pass "internal directory exists"
+if [ -d "backend/internal" ]; then
+    check_pass "backend/internal directory exists"
 else
-    check_fail "internal directory missing"
+    check_fail "backend/internal directory missing"
 fi
 
 # ============================================
@@ -169,10 +158,10 @@ else
     check_warn "README.md missing"
 fi
 
-if [ -f "DEPLOYMENT.md" ]; then
-    check_pass "DEPLOYMENT.md exists"
+if [ -f "docs/DEPLOYMENT.md" ]; then
+    check_pass "docs/DEPLOYMENT.md exists"
 else
-    check_warn "DEPLOYMENT.md missing"
+    check_warn "docs/DEPLOYMENT.md missing"
 fi
 
 # ============================================
@@ -206,7 +195,7 @@ fi
 # ============================================
 section "🔐 Environment Variables Check"
 
-if [ -f "env.example" ]; then
+if [ -f "backend/env.example" ]; then
     required_vars=(
         "DISCORD_CLIENT_ID"
         "DISCORD_CLIENT_SECRET"
@@ -221,10 +210,10 @@ if [ -f "env.example" ]; then
     )
     
     for var in "${required_vars[@]}"; do
-        if grep -q "^$var=" "env.example"; then
-            check_pass "$var defined in env.example"
+        if grep -q "^$var=" "backend/env.example"; then
+            check_pass "$var defined in backend/env.example"
         else
-            check_fail "$var missing in env.example"
+            check_fail "$var missing in backend/env.example"
         fi
     done
 fi
@@ -249,4 +238,3 @@ else
     echo "Please fix the errors above before deploying."
     exit 1
 fi
-

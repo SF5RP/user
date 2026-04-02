@@ -1,7 +1,7 @@
 package database
 
 import (
-	"user-service/internal/models"
+	"auth-service/internal/models"
 )
 
 type UserRepo struct {
@@ -54,9 +54,18 @@ func (r *UserRepo) FindAll() ([]models.User, error) {
 	return users, rows.Err()
 }
 
+func (r *UserRepo) FindByDiscordID(discordID string) (*models.User, error) {
+	var u models.User
+	err := r.db.SQL.QueryRow(`SELECT id, discord_id, username, discriminator, avatar, role, created_at FROM users WHERE discord_id=$1`, discordID).
+		Scan(&u.ID, &u.DiscordID, &u.Username, &u.Discriminator, &u.Avatar, &u.Role, &u.CreatedAt)
+	if err != nil {
+		return nil, err
+	}
+	return &u, nil
+}
+
 func (r *UserRepo) UpdateRole(id uint, role string) error {
 	_, err := r.db.SQL.Exec(`UPDATE users SET role=$1 WHERE id=$2`, role, id)
 	return err
 }
-
 

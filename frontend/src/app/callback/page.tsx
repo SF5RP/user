@@ -59,8 +59,7 @@ function CallbackPageInner() {
       // Сохраняем токены в cookies
       Cookies.set("accessToken", accessToken, { expires: 7 });
       Cookies.set("refreshToken", refreshToken, { expires: 30 });
-      // Перенаправляем на список серверов
-      router.push("/servers");
+      router.push("/profile");
     } else {
       router.push("/login?error=missing_tokens");
     }
