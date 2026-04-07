@@ -19,8 +19,10 @@ on:
 
 env:
   GO_VERSION: "1.22"
-  BINARY_NAME: "user-service"
-  SSH_PORT: 22
+  APP_NAME: auth-service
+  REMOTE_BASE_DIR: /srv/auth-service
+  REMOTE_TMP_DIR: /tmp/auth-service-deploy/backend
+  REMOTE_ARCHIVE: auth-service-backend.tar.gz
 
 jobs:
   build-and-deploy:
@@ -32,41 +34,20 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
-
-      - name: Cache Go modules
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cache/go-build
-            ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('backend/go.sum') }}
-          restore-keys: |
-            ${{ runner.os }}-go-
-
-      - name: Build binary
-        working-directory: backend
-        run: |
-          go mod download
-          go mod tidy
-          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -installsuffix cgo -o ${{ env.BINARY_NAME }} ./main.go
-          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -installsuffix cgo -o migrator ./cmd/migrator/main.go
+          cache-dependency-path: backend/go.sum
 
       - name: Run tests
         working-directory: backend
         run: go test ./... || true
 
-      - name: Prepare deployment files
+      - name: Prepare backend release
         working-directory: backend
         run: |
-          mkdir deploy_package
-          cp -v ${{ env.BINARY_NAME }} deploy_package/
-          cp -v migrator deploy_package/
-          cp -v env.example deploy_package/ || true
-          cp -v ../README.md deploy_package/ || true
-          cp -rv migrations deploy_package/ || true
+          make deploy-prep
+          tar -czf ${{ env.REMOTE_ARCHIVE }} -C dist auth-service-backend
 
       - name: Install SSH key
         uses: shimataro/ssh-key-action@v2
@@ -74,131 +55,55 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           known_hosts: "just-a-placeholder"
 
-      - name: Deploy and restart service
+      - name: Upload backend deploy script and package
+        env:
+          SSH_PORT: ${{ secrets.SSH_PORT || 22 }}
+          REMOTE_USER: ${{ secrets.SERVER_USER }}
+          REMOTE_HOST: ${{ secrets.SERVER_HOST }}
         run: |
-          echo "🚀 Deploying to production environment..."
+          ssh-keyscan -H $REMOTE_HOST >> ~/.ssh/known_hosts || true
+          ssh -o StrictHostKeyChecking=no -p ${SSH_PORT:-22} $REMOTE_USER@$REMOTE_HOST "mkdir -p ${{ env.REMOTE_BASE_DIR }}/backend/deploy ${{ env.REMOTE_TMP_DIR }}"
+          scp -o StrictHostKeyChecking=no -P ${SSH_PORT:-22} backend/deploy/deploy_backend.sh $REMOTE_USER@$REMOTE_HOST:${{ env.REMOTE_BASE_DIR }}/backend/deploy/deploy_backend.sh
+          scp -o StrictHostKeyChecking=no -P ${SSH_PORT:-22} backend/${{ env.REMOTE_ARCHIVE }} $REMOTE_USER@$REMOTE_HOST:${{ env.REMOTE_TMP_DIR }}/${{ env.REMOTE_ARCHIVE }}
 
-          # Ensure remote deploy directory exists
-          ssh -o StrictHostKeyChecking=no -p ${{ env.SSH_PORT }} \
-              ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} \
-              "mkdir -p /home/${{ secrets.SERVER_USER }}/user-service"
-
-          # Copy files with temporary names
-          scp -o StrictHostKeyChecking=no -P ${{ env.SSH_PORT }} \
-              backend/deploy_package/${{ env.BINARY_NAME }} \
-              ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:/home/${{ secrets.SERVER_USER }}/user-service/${{ env.BINARY_NAME }}.tmp
-
-          # Copy migrator binary
-          scp -o StrictHostKeyChecking=no -P ${{ env.SSH_PORT }} \
-              backend/deploy_package/migrator \
-              ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:/home/${{ secrets.SERVER_USER }}/user-service/migrator.tmp
-
-          # Upload systemd unit file (temporary name)
-          scp -o StrictHostKeyChecking=no -P ${{ env.SSH_PORT }} \
-              deploy/systemd/user-service.service \
-              ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:/home/${{ secrets.SERVER_USER }}/user-service/user-service.service.tmp
-              
-          # Create .env file with proper values
-          cat > /tmp/.env << 'ENV_EOF'
-          DB_HOST=${{ secrets.DB_HOST || 'localhost' }}
-          DB_PORT=${{ secrets.DB_PORT || '5432' }}
-          DB_NAME=${{ secrets.DB_NAME || 'authdb' }}
-          DB_USER=${{ secrets.DB_USER || 'auth' }}
-          DB_PASSWORD=${{ secrets.DB_PASSWORD }}
-          DATABASE_URL=postgres://${{ secrets.DB_USER || 'auth' }}:${{ secrets.DB_PASSWORD }}@${{ secrets.DB_HOST || 'localhost' }}:${{ secrets.DB_PORT || '5432' }}/${{ secrets.DB_NAME || 'authdb' }}?sslmode=disable
-
-          DISCORD_CLIENT_ID=${{ secrets.DISCORD_CLIENT_ID }}
-          DISCORD_CLIENT_SECRET=${{ secrets.DISCORD_CLIENT_SECRET }}
-          DISCORD_REDIRECT_URI=${{ secrets.DISCORD_REDIRECT_URI }}
-
-          SERVER_PORT=12410
-          JWT_SECRET=${{ secrets.JWT_SECRET }}
-          FRONTEND_URL=${{ secrets.FRONTEND_URL || 'http://localhost:3000' }}
-          ENVIRONMENT=production
-          ADMIN_DISCORD_IDS=${{ secrets.ADMIN_DISCORD_IDS || '' }}
-          ENV_EOF
-
-          # Upload .env file
-          scp -o StrictHostKeyChecking=no -P ${{ env.SSH_PORT }} \
-              /tmp/.env \
-              ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:/home/${{ secrets.SERVER_USER }}/user-service/.env.tmp
-
-          # Execute deployment commands on server
-          ssh -o StrictHostKeyChecking=no -p ${{ env.SSH_PORT }} \
-              ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} \
-              "export BINARY_NAME=${{ env.BINARY_NAME }} && bash -s" << 'EOF'
+      - name: Check backend deploy prerequisites
+        env:
+          SSH_PORT: ${{ secrets.SSH_PORT || 22 }}
+          REMOTE_USER: ${{ secrets.SERVER_USER }}
+          REMOTE_HOST: ${{ secrets.SERVER_HOST }}
+        run: |
+          ssh -o StrictHostKeyChecking=no -p ${SSH_PORT:-22} $REMOTE_USER@$REMOTE_HOST "bash -s" << 'EOF'
           set -e
-
-          echo "🔄 Stopping user-service..."
-          sudo systemctl stop user-service.service || true
-
-          echo "📦 Ensuring install directory..."
-          sudo mkdir -p /opt/user-service
-          sudo chown -R $USER:$USER /opt/user-service
-
-          echo "📦 Replacing files atomically..."
-          sudo mv -f /home/$USER/user-service/$BINARY_NAME.tmp /opt/user-service/$BINARY_NAME
-          sudo mv -f /home/$USER/user-service/migrator.tmp /opt/user-service/migrator
-          sudo mv -f /home/$USER/user-service/.env.tmp /opt/user-service/.env
-
-          echo "🔐 Setting permissions..."
-          sudo chmod +x /opt/user-service/$BINARY_NAME
-          sudo chmod +x /opt/user-service/migrator
-          sudo chown $USER:$USER /opt/user-service/.env
-          sudo chmod 600 /opt/user-service/.env
-
-          echo "♻️ Reloading systemd units..."
-          # Install/refresh systemd unit
-          sudo mv -f /home/$USER/user-service/user-service.service.tmp /etc/systemd/system/user-service.service
-          sudo chown root:root /etc/systemd/system/user-service.service
-          sudo chmod 644 /etc/systemd/system/user-service.service
-
-          sudo systemctl daemon-reload
-          sudo systemctl enable user-service.service || true
-
-          echo "🗄️ Running database migrations..."
-          source /opt/user-service/.env
-          cd /opt/user-service
-          if [ -d "migrations" ]; then
-            echo "📝 Migrations found, applying..."
-            # Run migrator if binary exists, otherwise manual approach
-            if [ -f "migrator" ]; then
-              echo "🚀 Executing migrations..."
-              ./migrator up
-              if [ $? -eq 0 ]; then
-                echo "✅ Migrations applied successfully"
-              else
-                echo "❌ Migration failed!"
-                exit 1
-              fi
-            else
-              echo "⚠️ Migrator binary not found, ensure migrations are applied separately"
-              exit 1
-            fi
-          else
-            echo "⚠️ No migrations directory found"
-          fi
-
-          echo "🚀 Starting user-service..."
-          sudo systemctl start user-service.service
-
-          echo "✅ Verifying deployment..."
-          sleep 5
-          if sudo systemctl is-active --quiet user-service; then
-            echo "✅ Deployment successful!"
-            sudo systemctl status user-service --no-pager
-          else
-            echo "❌ Deployment failed!"
-            sudo journalctl -u user-service -n 20 --no-pager
+          chmod +x "/srv/auth-service/backend/deploy/deploy_backend.sh"
+          if [ ! -f "/srv/auth-service/shared/backend/env/backend.env" ]; then
+            echo "Missing backend env file: /srv/auth-service/shared/backend/env/backend.env" >&2
             exit 1
           fi
+          unit_found=
+          for p in /etc/systemd/system/auth-service-backend.service /lib/systemd/system/auth-service-backend.service /usr/lib/systemd/system/auth-service-backend.service; do
+            if [ -f "$p" ]; then unit_found=1; break; fi
+          done
+          if [ -z "$unit_found" ]; then
+            echo "auth-service-backend.service not found. Copy deploy/systemd/auth-service-backend.service.example to /etc/systemd/system/auth-service-backend.service, daemon-reload, enable." >&2
+            exit 1
+          fi
+          EOF
+
+      - name: Run backend deploy
+        env:
+          SSH_PORT: ${{ secrets.SSH_PORT || 22 }}
+          REMOTE_USER: ${{ secrets.SERVER_USER }}
+          REMOTE_HOST: ${{ secrets.SERVER_HOST }}
+        run: |
+          ssh -o StrictHostKeyChecking=no -p ${SSH_PORT:-22} $REMOTE_USER@$REMOTE_HOST "bash -s" << 'EOF'
+          set -e
+          "/srv/auth-service/backend/deploy/deploy_backend.sh" "/tmp/auth-service-deploy/backend/auth-service-backend.tar.gz"
           EOF
 
       - name: Health check
         run: |
           echo "🏥 Running health check..."
           sleep 10
-
           if curl -f http://${{ secrets.SERVER_HOST }}/health; then
             echo "✅ Health check passed!"
           else
@@ -209,15 +114,13 @@ jobs:
       - name: Deployment summary
         if: always()
         run: |
-          if [ "${{ job.status }}" == "success" ]; then
-            echo "🚀 Deployment completed successfully!"
+          if [ "${{ job.status }}" = "success" ]; then
             echo "## 🚀 Deployment Summary" >> $GITHUB_STEP_SUMMARY
             echo "- **Environment**: production" >> $GITHUB_STEP_SUMMARY
             echo "- **Branch**: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
             echo "- **Commit**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
             echo "- **Status**: ✅ Success" >> $GITHUB_STEP_SUMMARY
           else
-            echo "💥 Deployment failed!"
             echo "## 💥 Deployment Failed" >> $GITHUB_STEP_SUMMARY
             echo "- **Environment**: production" >> $GITHUB_STEP_SUMMARY
             echo "- **Branch**: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
