@@ -9,15 +9,21 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-func CORS(frontendURL string) gin.HandlerFunc {
+func CORS(allowedOrigins []string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		origin := c.Request.Header.Get("Origin")
 
-		// Разрешаем запросы с фронтенда или любые localhost запросы для разработки
-		if origin == frontendURL || strings.HasPrefix(origin, "http://localhost:") {
+		allowedOrigin := ""
+		for _, candidate := range allowedOrigins {
+			if origin == candidate {
+				allowedOrigin = origin
+				break
+			}
+		}
+
+		// Разрешаем запросы с доверенных origin'ов или любые localhost запросы для разработки.
+		if allowedOrigin != "" || strings.HasPrefix(origin, "http://localhost:") {
 			c.Header("Access-Control-Allow-Origin", origin)
-		} else {
-			c.Header("Access-Control-Allow-Origin", frontendURL)
 		}
 
 		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")

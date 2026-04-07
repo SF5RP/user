@@ -66,7 +66,7 @@ func main() {
 	router.Use(gin.Recovery())
 
 	// Middleware для CORS
-	router.Use(middleware.CORS(cfg.FrontendURL))
+	router.Use(middleware.CORS(cfg.AllowedOrigins))
 
 	// Health check endpoint (no /api prefix for monitoring)
 	router.GET("/health", handlers.HealthCheck)

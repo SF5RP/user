@@ -13,6 +13,7 @@ type Config struct {
 	DiscordClientSecret string
 	DiscordRedirectURI  string
 	FrontendURL         string
+	AllowedOrigins      []string
 	AllowedReturnURLs   []string
 	JWTSecret           string
 	ServerPort          string
@@ -48,6 +49,22 @@ func Load() (*Config, error) {
 		cfg.AllowedReturnURLs = cleaned
 	} else {
 		cfg.AllowedReturnURLs = []string{}
+	}
+
+	if origins := getEnv("ALLOWED_ORIGINS", ""); origins != "" {
+		parts := strings.Split(origins, ",")
+		cleaned := make([]string, 0, len(parts))
+		for _, p := range parts {
+			v := strings.TrimSpace(p)
+			if v != "" {
+				cleaned = append(cleaned, v)
+			}
+		}
+		cfg.AllowedOrigins = cleaned
+	} else if cfg.FrontendURL != "" {
+		cfg.AllowedOrigins = []string{cfg.FrontendURL}
+	} else {
+		cfg.AllowedOrigins = []string{}
 	}
 
 	if ids := getEnv("ADMIN_DISCORD_IDS", ""); ids != "" {
