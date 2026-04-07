@@ -34,10 +34,11 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
+          cache: yarn
+          cache-dependency-path: frontend/yarn.lock
 
-      - name: Enable Corepack and pin Yarn
+      - name: Activate Yarn
         run: |
-          corepack enable
           corepack prepare yarn@4.10.3 --activate
 
       - name: Install dependencies
@@ -51,11 +52,11 @@ jobs:
           NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
           NEXT_PUBLIC_APP_URL: ${{ secrets.NEXT_PUBLIC_APP_URL }}
         run: |
-          yarn build
+          yarn deploy:prep
 
       - name: Prepare deploy artifact
         run: |
-          tar -czf frontend.tgz -C ${{ env.FRONTEND_DIR }} .
+          tar -czf frontend.tgz -C ${{ env.FRONTEND_DIR }}/dist auth-service-frontend
 
       - name: Install SSH key
         uses: shimataro/ssh-key-action@v2
@@ -68,54 +69,20 @@ jobs:
           SSH_PORT: ${{ secrets.SSH_PORT || 22 }}
           REMOTE_USER: ${{ secrets.SERVER_USER }}
           REMOTE_HOST: ${{ secrets.SERVER_HOST }}
-          REMOTE_DIR: /home/${{ secrets.SERVER_USER }}/user-service/frontend
+          REMOTE_DIR: /tmp
         run: |
           echo "🚀 Deploying frontend..."
 
-          ssh -o StrictHostKeyChecking=no -p ${SSH_PORT:-22} $REMOTE_USER@$REMOTE_HOST "mkdir -p $REMOTE_DIR && mkdir -p /home/$REMOTE_USER/user-service/logs"
+          ssh -o StrictHostKeyChecking=no -p ${SSH_PORT:-22} $REMOTE_USER@$REMOTE_HOST "mkdir -p $REMOTE_DIR"
 
           scp -o StrictHostKeyChecking=no -P ${SSH_PORT:-22} frontend.tgz $REMOTE_USER@$REMOTE_HOST:$REMOTE_DIR/frontend.tgz
+          scp -o StrictHostKeyChecking=no -P ${SSH_PORT:-22} frontend/deploy/deploy_frontend.sh $REMOTE_USER@$REMOTE_HOST:$REMOTE_DIR/deploy_frontend.sh
 
           ssh -o StrictHostKeyChecking=no -p ${SSH_PORT:-22} $REMOTE_USER@$REMOTE_HOST "bash -s" << 'EOF'
           set -e
-          APP_DIR="$HOME/user-service/frontend"
-
-          # Extract new build
-          cd "$APP_DIR"
-          tar -xzf frontend.tgz
-          rm -f frontend.tgz
-
-          # Ensure Node.js and pm2
-          if ! command -v node >/dev/null 2>&1; then
-            curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash -
-            sudo apt-get install -y nodejs
-          fi
-          # Enable Corepack for Yarn
-          if command -v corepack >/dev/null 2>&1; then
-            corepack enable || true
-            corepack prepare yarn@4.10.3 --activate || true
-          fi
-          if ! command -v pm2 >/dev/null 2>&1; then
-            sudo npm i -g pm2
-          fi
-
-          # Install dependencies on server to rebuild native modules if any (Yarn first, fallback to npm)
-          if command -v yarn >/dev/null 2>&1; then
-            yarn install --immutable || YARN_ENABLE_IMMUTABLE_INSTALLS=false yarn install
-          else
-            npm ci --omit=dev || npm ci
-          fi
-
-          # Build and start with PM2 (uses start-prod.js)
-          if [ -f ecosystem.config.js ]; then
-            pm2 start ecosystem.config.js || pm2 reload ecosystem.config.js
-          else
-            # Fallback: run Next directly
-            npm run build
-            pm2 start "npm -- start" --name auth-frontend
-          fi
-
-          pm2 save
+          chmod +x /tmp/deploy_frontend.sh
+          /tmp/deploy_frontend.sh /tmp/frontend.tgz
+          rm -f /tmp/frontend.tgz /tmp/deploy_frontend.sh
           EOF
 
       - name: Health check
@@ -137,15 +104,14 @@ jobs:
           if curl -fsS --connect-timeout 10 --max-time 30 "$FRONTEND_URL/" || curl -fsS --connect-timeout 10 --max-time 30 "$FRONTEND_URL/login"; then
             echo "✅ Frontend HTTP check passed"
           else
-            echo "⚠️ HTTP check failed, trying SSH process check..."
-            
-            # Fallback: Check if PM2 process is running via SSH
-            if ssh -o StrictHostKeyChecking=no -p ${SSH_PORT:-22} $REMOTE_USER@$REMOTE_HOST "pm2 list | grep -q 'auth-frontend.*online'"; then
-              echo "✅ PM2 process is online (SSH fallback check passed)"
+            echo "⚠️ HTTP check failed, trying systemd status via SSH..."
+
+            if ssh -o StrictHostKeyChecking=no -p ${SSH_PORT:-22} $REMOTE_USER@$REMOTE_HOST "systemctl is-active --quiet auth-service-frontend"; then
+              echo "✅ auth-service-frontend is active (SSH fallback check passed)"
             else
               echo "❌ Both HTTP and SSH checks failed"
-              echo "PM2 status:"
-              ssh -o StrictHostKeyChecking=no -p ${SSH_PORT:-22} $REMOTE_USER@$REMOTE_HOST "pm2 list" || true
+              echo "Systemd status:"
+              ssh -o StrictHostKeyChecking=no -p ${SSH_PORT:-22} $REMOTE_USER@$REMOTE_HOST "systemctl status auth-service-frontend --no-pager" || true
               exit 1
             fi
           fi
