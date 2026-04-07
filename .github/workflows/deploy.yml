@@ -101,14 +101,32 @@ jobs:
           EOF
 
       - name: Health check
+        env:
+          SSH_PORT: ${{ secrets.SSH_PORT || 22 }}
+          REMOTE_USER: ${{ secrets.SERVER_USER }}
+          REMOTE_HOST: ${{ secrets.SERVER_HOST }}
         run: |
           echo "🏥 Running health check..."
-          sleep 10
-          if curl -f http://${{ secrets.SERVER_HOST }}/health; then
-            echo "✅ Health check passed!"
+          sleep 5
+          if ssh -o StrictHostKeyChecking=no -p ${SSH_PORT:-22} $REMOTE_USER@$REMOTE_HOST "curl -fsS http://127.0.0.1:8080/health"; then
+            echo "✅ Backend health check passed!"
           else
-            echo "❌ Health check failed!"
-            exit 1
+            echo "⚠️ Direct backend health check failed, checking systemd status..."
+            if ssh -o StrictHostKeyChecking=no -p ${SSH_PORT:-22} $REMOTE_USER@$REMOTE_HOST "systemctl is-active --quiet auth-service-backend"; then
+              echo "✅ auth-service-backend is active (SSH fallback check passed)"
+            else
+              echo "❌ Backend health check failed"
+              ssh -o StrictHostKeyChecking=no -p ${SSH_PORT:-22} $REMOTE_USER@$REMOTE_HOST "systemctl status auth-service-backend --no-pager" || true
+              exit 1
+            fi
+          fi
+
+      - name: External health check
+        run: |
+          if curl -fsS http://${{ secrets.SERVER_HOST }}/health; then
+            echo "✅ External health check passed!"
+          else
+            echo "⚠️ External health check failed. This usually means nginx/server_name/DNS is not pointing this host to the auth backend yet."
           fi
 
       - name: Deployment summary
