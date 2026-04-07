@@ -73,3 +73,7 @@ backend/*.test
 *.sql
 *.sql.gz
 backups/
+
+# Keep backend migrations in repo
+!backend/migrations/
+!backend/migrations/*.sql
