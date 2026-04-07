@@ -42,7 +42,7 @@ jobs:
       - name: Install dependencies
         working-directory: ${{ env.FRONTEND_DIR }}
         run: |
-          yarn install --immutable || (echo "Immutable install failed; retrying without immutable" && YARN_ENABLE_IMMUTABLE_INSTALLS=false yarn install)
+          corepack yarn install --immutable || (echo "Immutable install failed; retrying without immutable" && YARN_ENABLE_IMMUTABLE_INSTALLS=false corepack yarn install)
 
       - name: Build frontend
         working-directory: ${{ env.FRONTEND_DIR }}
@@ -50,7 +50,7 @@ jobs:
           NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
           NEXT_PUBLIC_APP_URL: ${{ secrets.NEXT_PUBLIC_APP_URL }}
         run: |
-          yarn deploy:prep
+          corepack yarn deploy:prep
 
       - name: Prepare deploy artifact
         run: |
