@@ -123,6 +123,37 @@ func (s *AuthService) RefreshAccessToken(refreshTokenString string) (string, err
 	return accessToken.SignedString([]byte(s.config.JWTSecret))
 }
 
+func (s *AuthService) GenerateAccessTokenByRefreshToken(refreshTokenString string) (string, error) {
+	if s.tokenRepo == nil {
+		return "", fmt.Errorf("token repository not configured")
+	}
+	if s.userRepo == nil {
+		return "", fmt.Errorf("user repository not configured")
+	}
+
+	refreshToken, err := s.tokenRepo.Find(refreshTokenString)
+	if err != nil || refreshToken == nil {
+		return "", fmt.Errorf("invalid refresh token")
+	}
+	if refreshToken.ExpiresAt.Before(time.Now()) {
+		return "", fmt.Errorf("invalid refresh token")
+	}
+
+	user, err := s.userRepo.FindByID(refreshToken.UserID)
+	if err != nil || user == nil {
+		return "", fmt.Errorf("user not found")
+	}
+
+	accessClaims := jwt.MapClaims{
+		"sub":  user.ID,
+		"role": user.Role,
+		"exp":  time.Now().Add(15 * time.Minute).Unix(),
+		"iat":  time.Now().Unix(),
+	}
+	accessToken := jwt.NewWithClaims(jwt.SigningMethodHS256, accessClaims)
+	return accessToken.SignedString([]byte(s.config.JWTSecret))
+}
+
 func (s *AuthService) CreateOrUpdateUser(discordID, username, discriminator, avatar string) (*models.User, error) {
 	if s.userRepo == nil {
 		return nil, fmt.Errorf("user repository not configured")

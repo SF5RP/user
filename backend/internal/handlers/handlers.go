@@ -60,6 +60,10 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
+	if h.tryAuthorizeFromCookieSession(c, returnTo) {
+		return
+	}
+
 	state, err := h.buildOAuthState(returnTo)
 	if err != nil {
 		h.logger.WithError(err).Error("Failed to generate OAuth state")
@@ -189,6 +193,8 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate tokens"})
 		return
 	}
+
+	setRefreshTokenCookie(c, refreshToken, h.cfg.Environment == "production")
 
 	callbackURL, err := appendTokensToReturnURL(returnTo, accessToken, refreshToken)
 	if err != nil {
@@ -360,6 +366,41 @@ func appendTokensToReturnURL(returnTo, accessToken, refreshToken string) (string
 	parsedURL.RawQuery = query.Encode()
 
 	return parsedURL.String(), nil
+}
+
+func (h *AuthHandler) tryAuthorizeFromCookieSession(c *gin.Context, returnTo string) bool {
+	refreshToken, err := c.Cookie("refresh_token")
+	if err != nil || strings.TrimSpace(refreshToken) == "" {
+		return false
+	}
+
+	accessToken, err := h.authService.GenerateAccessTokenByRefreshToken(refreshToken)
+	if err != nil {
+		return false
+	}
+
+	callbackURL, err := appendTokensToReturnURL(returnTo, accessToken, refreshToken)
+	if err != nil {
+		h.logger.WithError(err).Error("Failed to build callback URL from cookie session")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to build callback url"})
+		return true
+	}
+
+	c.Redirect(http.StatusFound, callbackURL)
+	return true
+}
+
+func setRefreshTokenCookie(c *gin.Context, refreshToken string, isProduction bool) {
+	c.SetSameSite(http.SameSiteLaxMode)
+	c.SetCookie(
+		"refresh_token",
+		refreshToken,
+		7*24*60*60,
+		"/",
+		"",
+		isProduction,
+		true,
+	)
 }
 
 
